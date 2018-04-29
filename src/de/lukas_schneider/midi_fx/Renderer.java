@@ -11,11 +11,16 @@ import java.util.List;
 
 
 class Renderer implements GLEventListener {
-  static final long FRAMES_PER_SECOND = 60;
-  static final long INITIAL_TICK = -4000;
+  private static final int FRAMES_PER_SECOND = 60;
+  private static final long NANOSECONDS_PER_FRAME = (1000 * 1000 * 1000) / FRAMES_PER_SECOND;
+
+  private static final int START_TIME_S = -2;
+  private static final int START_FRAME = START_TIME_S * FRAMES_PER_SECOND;
+
+  public static double WIDTH = 1920;
+  public static double HEIGHT = 1080;
 
   private Recorder recorder;
-  private final long ticksPerFrame;
   private List<Drawable> components = new ArrayList<>();
 
   private boolean playing = false;
@@ -23,15 +28,17 @@ class Renderer implements GLEventListener {
   private boolean idle = false;
 
   private int frame = 0;
-  private long tick = 0;
+  private long nanoTime = 0; // in ns
 
-  Renderer(GLAutoDrawableBase drawable, long ticksPerSecond) {
-    this.ticksPerFrame = ticksPerSecond / FRAMES_PER_SECOND;
+  Renderer(GLAutoDrawableBase drawable) {
     drawable.addGLEventListener(this);
   }
 
   @Override
   public void init(GLAutoDrawable glAutoDrawable) {
+    final GL2 gl = glAutoDrawable.getGL().getGL2();
+    gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    components.forEach((component) -> component.init(gl));
     idle = true;
     frame = 0;
   }
@@ -44,24 +51,27 @@ class Renderer implements GLEventListener {
   @Override
   public void display(GLAutoDrawable glAutoDrawable) {
     final GL2 gl = glAutoDrawable.getGL().getGL2();
-    gl.glClear(GL.GL_COLOR_BUFFER_BIT);
+    gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT | GL2.GL_STENCIL_BUFFER_BIT);
 
     if (idle) {
-      components.forEach((component) -> component.drawIdle(gl));
+      components.forEach((component) -> component.drawStatic(gl));
     }
 
     if (playing) {
-      components.forEach((component) -> component.draw(gl, frame, tick));
+      nanoTime = frame * NANOSECONDS_PER_FRAME;
+      components.forEach((component) -> component.draw(gl, nanoTime));
       drawPlay(gl);
-      tick += ticksPerFrame;
+      nanoTime = frame * NANOSECONDS_PER_FRAME;
+
       frame++;
     }
 
     if (recording) {
-      components.forEach((component) -> component.draw(gl, frame, tick));
+      nanoTime = frame * NANOSECONDS_PER_FRAME;
+      components.forEach((component) -> component.draw(gl, nanoTime));
       recorder.addFrame(glAutoDrawable, frame);
       drawRec(gl);
-      tick += ticksPerFrame;
+
       frame++;
     }
   }
@@ -79,7 +89,7 @@ class Renderer implements GLEventListener {
     gl.glMatrixMode(GL2.GL_MODELVIEW);
     gl.glLoadIdentity();
     gl.glTranslated(-1, 1, 0);
-    gl.glScaled(2.0 / 1920.0, -2.0 / 1080.0, 1);
+    gl.glScaled(2.0 / WIDTH, -2.0 / HEIGHT, 1);
   }
 
   private void drawCircle(GL2 gl, double x, double y, double radius) {
@@ -95,12 +105,12 @@ class Renderer implements GLEventListener {
 
   private void drawRec(GL2 gl) {
     gl.glColor3d(1.0, 0.0, 0.0);
-    drawCircle(gl, 1920 - 60, 60, 25);
+    drawCircle(gl, WIDTH - 60, 60, 25);
   }
 
   private void drawPlay(GL2 gl) {
 
-    double x = 1920 - 60;
+    double x = WIDTH - 60;
     double y = 60;
     double r = 25;
 
@@ -127,16 +137,15 @@ class Renderer implements GLEventListener {
     idle = false;
     playing = true;
 
-    frame = 0;
-    tick = INITIAL_TICK;
+    frame = START_FRAME;
   }
 
   void record() {
     if (!idle) return;
     idle = false;
     recording = true;
-    frame = 0;
-    tick = INITIAL_TICK;
+
+    frame = START_FRAME;
     recorder = new Recorder();
     System.out.println("recording...");
   }

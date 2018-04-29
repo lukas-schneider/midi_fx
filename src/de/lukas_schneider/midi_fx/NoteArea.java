@@ -4,34 +4,38 @@ import com.jogamp.opengl.GL2;
 
 import java.util.Set;
 
-class NoteArea implements Drawable {
+public class NoteArea implements Drawable {
 
-  static final double WIDTH = Claviature.WIDTH;
-  static final double HEIGHT = Claviature.TOP_OFFSET;
-  static final double BLACK_WIDTH = Claviature.BLACK_KEY_WIDTH;
-  static final double WHITE_WIDTH = Claviature.WHITE_KEY_WIDTH;
+  static final double WIDTH = Renderer.WIDTH;
+  static final double HEIGHT = 850.0;
 
+  static final int CORNER_RESOLUTION = 40;
+  static final int CORNER_RADIUS = 3;
 
-  static final long TICK_RANGE = 4000;
+  private final Player player;
 
-  static final double PIXEL_PER_TICK = HEIGHT / TICK_RANGE;
+  private long timeRange;
+  private long timePerPixel;
 
-
-  static double getTickPosition(long relTick) {
-    return HEIGHT - relTick * PIXEL_PER_TICK;
+  public NoteArea(Player player) {
+    this.player = player;
+    setTimeRange(2);
   }
 
-  private NoteSequence sequence;
+  public void setTimeRange(int seconds) {
+    timeRange = seconds * (1000 * 1000 * 1000);
+    timePerPixel = (long) (timeRange / HEIGHT);
+  }
 
-  NoteArea(NoteSequence sequence) {
-    this.sequence = sequence;
+  double getYPosition(long timeDelta) {
+    return HEIGHT - timeDelta / timePerPixel;
   }
 
   private void drawOctaveLines(GL2 gl) {
     gl.glColor3d(0.3, 0.3, 0.3);
     gl.glLineWidth(1.0f);
     for (int i = Claviature.LOWEST_C; i <= Claviature.HIGHEST_KEY; i += Claviature.KEYS_PER_OCTAVE) {
-      double x = Claviature.getPosition(i);
+      double x = Claviature.getXPosition(i);
       gl.glBegin(GL2.GL_LINES);
       gl.glVertex2d(x, 0);
       gl.glVertex2d(x, HEIGHT);
@@ -39,13 +43,14 @@ class NoteArea implements Drawable {
     }
   }
 
-  private void drawBarLines(GL2 gl, long tick) {
+  private void drawBarLines(GL2 gl, long nanoTime) {
     gl.glColor3d(0.3, 0.3, 0.3);
     gl.glLineWidth(1.0f);
-    for (long t = Math.max(0, (tick - tick % sequence.getTicksPerBar())); t < tick + TICK_RANGE; t += sequence.getTicksPerBar()) {
-      double y = getTickPosition(t - tick);
-      if (y > HEIGHT || y < 0.0) continue;
 
+    Set<Long> bars = player.getBarsIn(nanoTime, nanoTime + timeRange);
+    double y;
+    for (Long bar : bars) {
+      y = getYPosition(bar - nanoTime);
       gl.glBegin(GL2.GL_LINES);
       gl.glVertex2d(0, y);
       gl.glVertex2d(WIDTH, y);
@@ -53,33 +58,53 @@ class NoteArea implements Drawable {
     }
   }
 
-  private void drawNote(GL2 gl, Note note, long tick) {
-    double xStart = Claviature.getPosition(note.getKey());
-    double xEnd = xStart + (Claviature.isBlack(note.getKey()) ? BLACK_WIDTH : WHITE_WIDTH);
+  private void drawCorner(GL2 gl, double x, double y, double r, int quadrant) {
+    int start = quadrant * CORNER_RESOLUTION;
+    int stop = (quadrant + 1) * CORNER_RESOLUTION;
 
-    double yStart = Math.max(0.0, getTickPosition(note.getEndTick() - tick));
-    double yEnd = Math.min(HEIGHT, getTickPosition(note.getStartTick() - tick));
+    for (int i = start; i <= stop; i++) {
+      double degInRad = (i * Math.PI) / (CORNER_RESOLUTION * 2);
+      gl.glVertex2d(x + Math.cos(degInRad) * r, y + Math.sin(degInRad) * r);
+    }
+  }
+
+  private void drawNoteRect(GL2 gl, double x0, double y0, double x1, double y1) {
+    double r = (x1 - x0) / CORNER_RADIUS;
+    gl.glBegin(GL2.GL_POLYGON);
+    drawCorner(gl, x1 - r, y1 - r, r, 0);
+    drawCorner(gl, x0 + r, y1 - r, r, 1);
+    drawCorner(gl, x0 + r, y0 + r, r, 2);
+    drawCorner(gl, x1 - r, y0 + r, r, 3);
+    gl.glEnd();
+  }
+
+  private void drawNote(GL2 gl, Note note, long nanoTime) {
+    double xStart = Claviature.getXPosition(note.getKey());
+    double xEnd = xStart + Claviature.getWidth(note.getKey());
+
+    double yStart = getYPosition(note.getEndTime() - nanoTime);
+    double yEnd = getYPosition(note.getStartTime() - nanoTime);
 
     Colors.set(gl, Colors.getTrackColor(note.getTrackId()));
 
-    gl.glRectd(xStart, yStart, xEnd, yEnd);
+    drawNoteRect(gl, xStart, yStart, xEnd, yEnd);
   }
 
-  private void drawNotes(GL2 gl, long tick) {
-    Set<Note> colored = sequence.getNotesIn(tick, tick + TICK_RANGE);
+  private void drawNotes(GL2 gl, long nanoTime) {
+    Set<Note> colored = player.getNotesIn(nanoTime, nanoTime + timeRange);
 
-    colored.forEach((note) -> drawNote(gl, note, tick));
+    colored.forEach((note) -> drawNote(gl, note, nanoTime));
   }
 
   @Override
-  public void draw(GL2 gl, int frameCount, long tick) {
+  public void draw(GL2 gl, long nanoTime) {
     drawOctaveLines(gl);
-    drawBarLines(gl, tick);
-    drawNotes(gl, tick);
+    drawBarLines(gl, nanoTime);
+    drawNotes(gl, nanoTime);
   }
 
   @Override
-  public void drawIdle(GL2 gl) {
+  public void drawStatic(GL2 gl) {
     drawOctaveLines(gl);
   }
 }

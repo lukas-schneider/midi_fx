@@ -1,43 +1,27 @@
 package de.lukas_schneider.midi_fx;
 
-import javax.sound.midi.MidiMessage;
-import javax.sound.midi.Sequence;
-import javax.sound.midi.ShortMessage;
-import javax.sound.midi.Track;
-import java.util.*;
+import javax.sound.midi.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.TreeMap;
 
 class NoteSequence {
-  private static final int BEATS_PER_BAR = 4;
-
-  private TreeMap<Long, ArrayList<Note>> mapByEndTick;
-  private TreeMap<Long, ArrayList<Note>> mapByStartTick;
+  private ArrayList<Note> notes;
+  private TreeMap<Long, Tempo> tempoChanges_tick;
 
   private float divisionType;
   private int resolution;
 
-  private long ticksPerBeat;
-  private long ticksPerBar;
-
-  private double beatsPerMinute;
-  private double beatsPerSecond;
-
-  NoteSequence(Sequence seq, double bpm) {
-    mapByEndTick = new TreeMap<>();
-    mapByStartTick = new TreeMap<>();
-
+  NoteSequence(Sequence seq) throws Exception {
     divisionType = seq.getDivisionType();
     resolution = seq.getResolution();
 
-    beatsPerMinute = bpm;
-    beatsPerSecond = beatsPerMinute / 60;
+    if (divisionType != Sequence.PPQ)
+      throw new Exception("unsupported MIDI format");
 
-    if (divisionType == Sequence.PPQ) {
-      ticksPerBeat = resolution;
-    } else {
-      ticksPerBeat = (long) (resolution * divisionType / beatsPerSecond);
-    }
-
-    ticksPerBar = ticksPerBeat * BEATS_PER_BAR;
+    notes = new ArrayList<>();
+    tempoChanges_tick = new TreeMap<>();
+    tempoChanges_tick.put(0L, new Tempo(120.0, resolution));
 
     Track[] tracks = seq.getTracks();
     for (int i = 0; i < tracks.length; i++) {
@@ -46,100 +30,54 @@ class NoteSequence {
     }
   }
 
-  NoteSequence(Sequence seq) {
-    this(seq, 240.0);
-  }
-
   private void addTrack(Track track, int trackId) {
-    int command, channelId;
+    MidiEvent event;
     MidiMessage message;
+    ShortMessage shortMsg;
+    MetaMessage metaMsg;
 
     ChannelBuffer[] buffer = new ChannelBuffer[16];
 
     for (int i = 0; i < track.size(); i++) {
-      message = track.get(i).getMessage();
+      event = track.get(i);
+      message = event.getMessage();
 
-      if (!(message instanceof ShortMessage)) continue;
+      if ((message instanceof ShortMessage)) {
+        shortMsg = (ShortMessage) message;
 
-      command = ((ShortMessage) message).getCommand();
-      channelId = ((ShortMessage) message).getChannel();
+        if (buffer[shortMsg.getChannel()] == null)
+          buffer[shortMsg.getChannel()] = new ChannelBuffer(trackId);
 
-      if (buffer[channelId] == null)
-        buffer[channelId] = new ChannelBuffer(trackId);
+        if (shortMsg.getCommand() == ShortMessage.NOTE_ON)
+          buffer[shortMsg.getChannel()].addNoteOn(event);
 
-      if (command == ShortMessage.NOTE_ON)
-        buffer[channelId].addNoteOn(track.get(i));
+        if (shortMsg.getCommand() == ShortMessage.NOTE_OFF)
+          buffer[shortMsg.getChannel()].addNoteOff(event);
 
-      if (command == ShortMessage.NOTE_OFF)
-        buffer[channelId].addNoteOff(track.get(i));
+      } else if (message instanceof MetaMessage) {
+        metaMsg = (MetaMessage) message;
+
+        if (metaMsg.getType() == 0x51)
+          tempoChanges_tick.put(event.getTick(), new Tempo(metaMsg, resolution));
+      }
     }
 
     for (ChannelBuffer b : buffer) {
       if (b == null) continue;
-      for (Note note : b.toArray()) {
-        addNote(note);
-      }
+      notes.addAll(Arrays.asList(b.toArray()));
     }
   }
 
-  private void addNote(Note note) {
-    long startKey = note.getStartTick();
-    if (mapByStartTick.containsKey(startKey)) {
-      mapByStartTick.get(startKey).add(note);
-    } else {
-      ArrayList<Note> entry = new ArrayList<>();
-      entry.add(note);
-      mapByStartTick.put(startKey, entry);
-    }
-
-    long endKey = note.getEndTick();
-    if (mapByEndTick.containsKey(endKey)) {
-      mapByEndTick.get(endKey).add(note);
-    } else {
-      ArrayList<Note> entry = new ArrayList<>();
-      entry.add(note);
-      mapByEndTick.put(endKey, entry);
-    }
+  public ArrayList<Note> getNotes() {
+    return notes;
   }
 
-  Set<Note> getNotesAt(long tick) {
-    return getNotesIn(tick, tick);
+  public TreeMap<Long, Tempo> getTempoChanges_tick() {
+    return tempoChanges_tick;
   }
 
-  Set<Note> getNotesIn(long tick1, long tick2) {
-    Collection<ArrayList<Note>> lower = mapByStartTick.headMap(tick2, true).values();
-    Collection<ArrayList<Note>> higher = mapByEndTick.tailMap(tick1, true).values();
-
-    HashSet<Note> lowerSet = new HashSet<>();
-    HashSet<Note> higherSet = new HashSet<>();
-    for (ArrayList<Note> list : lower) {
-      lowerSet.addAll(list);
-    }
-
-    for (ArrayList<Note> list : higher) {
-      higherSet.addAll(list);
-    }
-
-    // intersection
-    lowerSet.retainAll(higherSet);
-
-    return lowerSet;
-  }
-
-  public long getTicksPerBar() {
-    return ticksPerBar;
-  }
-
-  public long getTicksPerBeat() {
-    return ticksPerBeat;
-  }
-
-  public double getBeatsPerMinute() {
-    return beatsPerMinute;
-  }
-
-  public double getBeatsPerSecond() {
-    return beatsPerSecond;
+  public int getResolution() {
+    return resolution;
   }
 
   public String toString() {

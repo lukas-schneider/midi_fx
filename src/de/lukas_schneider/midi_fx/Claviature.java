@@ -17,24 +17,21 @@ class Claviature implements Drawable {
   static final int KEYS_PER_OCTAVE = 12;
   static final int WHITE_KEYS_PER_OCTAVE = 7;
 
-  static final double WIDTH = 1920.0;
-  static final double HEIGHT = 1080.0;
-
-  static final double LEFT_OFFSET = 0.0;
-  static final double RIGHT_OFFSET = 0.0;
-  static final double TOP_OFFSET = 858.5;
-  static final double BOTTOM_OFFSET = 0.0;
+  static final double X = 0;
+  static final double Y = NoteArea.HEIGHT;
+  static final double WIDTH = Renderer.WIDTH - X;
+  static final double HEIGHT = Renderer.HEIGHT - Y;
 
   // black key to white key height ratio
   static final double BLACK_KEY_HEIGHT_RATIO = 0.65;
 
 
-  static final double WHITE_KEY_WIDTH = ((WIDTH - LEFT_OFFSET - RIGHT_OFFSET) / WHITE_KEYS);
+  static final double WHITE_KEY_WIDTH = (WIDTH / WHITE_KEYS);
   static final double BLACK_KEY_WIDTH = (WHITE_KEY_WIDTH * 0.5);
 
   static final double OCTAVE_WIDTH = (WHITE_KEYS_PER_OCTAVE * WHITE_KEY_WIDTH);
 
-  static final double WHITE_KEY_HEIGHT = HEIGHT - TOP_OFFSET - BOTTOM_OFFSET;
+  static final double WHITE_KEY_HEIGHT = HEIGHT;
   static final double BLACK_KEY_HEIGHT = WHITE_KEY_HEIGHT * BLACK_KEY_HEIGHT_RATIO;
 
   //position relative to octave start
@@ -57,8 +54,6 @@ class Claviature implements Drawable {
       OCTAVE_WIDTH - KEY_POSITION[
           (LOWEST_KEY + KEYS_PER_OCTAVE - LOWEST_C) % KEYS_PER_OCTAVE
           ];
-  private NoteSequence sequence;
-
 
   // LOWEST_C starts octave 0, LOWEST_KEY is in octave -1
   static int getOctave(int key) {
@@ -71,12 +66,12 @@ class Claviature implements Drawable {
     return (key + KEYS_PER_OCTAVE - LOWEST_C) % KEYS_PER_OCTAVE;
   }
 
-  static double getPositionInOctave(int key) {
+  static double getXPositionInOctave(int key) {
     return KEY_POSITION[getIndexInOctave(key)];
   }
 
-  static double getPosition(int key) {
-    return FIRST_C_POSITION + (getOctave(key) * OCTAVE_WIDTH) + getPositionInOctave(key);
+  static double getXPosition(int key) {
+    return FIRST_C_POSITION + (getOctave(key) * OCTAVE_WIDTH) + getXPositionInOctave(key);
   }
 
   static boolean isBlack(int key) {
@@ -96,13 +91,15 @@ class Claviature implements Drawable {
     return isBlack(key) ? BLACK_KEY_WIDTH : WHITE_KEY_WIDTH;
   }
 
-  Claviature(NoteSequence sequence) {
-    this.sequence = sequence;
+  private Player player;
+
+  Claviature(Player player) {
+    this.player = player;
   }
 
   private void drawKey(GL2 gl, int key, Color c) {
-    double xStart = LEFT_OFFSET + getPosition(key);
-    double yStart = TOP_OFFSET;
+    double xStart = X + getXPosition(key);
+    double yStart = Y;
 
     gl.glColor3ub((byte) c.getRed(), (byte) c.getGreen(), (byte) c.getBlue());
 
@@ -172,8 +169,8 @@ class Claviature implements Drawable {
   }
 
   @Override
-  public void draw(GL2 gl, int frameCount, long tick) {
-    Set<Note> colored = sequence.getNotesAt(tick);
+  public void draw(GL2 gl, long nanoTime) {
+    Set<Note> colored = player.getNotesAt(nanoTime);
 
     Color[] colors = new Color[MAX_KEYS];
     for (Note n : colored) {
@@ -184,7 +181,7 @@ class Claviature implements Drawable {
   }
 
   @Override
-  public void drawIdle(GL2 gl) {
+  public void drawStatic(GL2 gl) {
     Color[] colors = new Color[MAX_KEYS];
     drawClaviature(gl, colors);
   }
