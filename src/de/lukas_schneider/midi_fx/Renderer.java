@@ -14,7 +14,7 @@ class Renderer implements GLEventListener {
   private static final int FRAMES_PER_SECOND = 60;
   private static final long NANOSECONDS_PER_FRAME = (1000 * 1000 * 1000) / FRAMES_PER_SECOND;
 
-  private static final int START_TIME_S = -2;
+  private static final int START_TIME_S = -5;
   private static final int START_FRAME = START_TIME_S * FRAMES_PER_SECOND;
 
   public static double WIDTH = 1920;

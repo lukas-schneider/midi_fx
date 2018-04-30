@@ -174,7 +174,7 @@ class Claviature implements Drawable {
 
     Color[] colors = new Color[MAX_KEYS];
     for (Note n : colored) {
-      colors[n.getKey()] = Colors.getTrackColor(n.getTrackId());
+      colors[n.getKey()] = n.getColor();
     }
 
     drawClaviature(gl, colors);

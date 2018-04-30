@@ -56,12 +56,12 @@ class Player {
     return getNotesIn(time, time);
   }
 
-  public Set<Note> getNotesIn(long time1, long time2) {
+  public SortedSet<Note> getNotesIn(long time1, long time2) {
     Collection<ArrayList<Note>> lower = notes_startTime.headMap(time2, true).values();
     Collection<ArrayList<Note>> higher = notes_endTime.tailMap(time1, true).values();
 
-    HashSet<Note> lowerSet = new HashSet<>();
-    HashSet<Note> higherSet = new HashSet<>();
+    SortedSet<Note> lowerSet = new TreeSet<>();
+    SortedSet<Note> higherSet = new TreeSet<>();
     for (ArrayList<Note> list : lower) {
       lowerSet.addAll(list);
     }

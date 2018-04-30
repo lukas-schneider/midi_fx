@@ -2,8 +2,9 @@ package de.lukas_schneider.midi_fx;
 
 import javax.sound.midi.MidiEvent;
 import javax.sound.midi.ShortMessage;
+import java.awt.*;
 
-public class Note {
+public class Note implements Comparable<Note> {
   private final long startTick;
   private final long endTick;
   private final int key;
@@ -19,6 +20,13 @@ public class Note {
     this.key = ((ShortMessage) noteOn.getMessage()).getData1();
     this.startTick = noteOn.getTick();
     this.endTick = noteOff.getTick();
+  }
+
+  public Color getColor() {
+    if (Claviature.isBlack(key))
+      return Colors.getTrackColorBlack(trackId);
+    else
+      return Colors.getTrackColorWhite(trackId);
   }
 
   public long getStartTick() {
@@ -55,5 +63,14 @@ public class Note {
 
   public void setEndTime(long endTime) {
     this.endTime = endTime;
+  }
+
+  @Override
+  public int compareTo(Note o) {
+    int cmp = Long.compare(this.startTick, o.startTick);
+
+    if (cmp != 0) return cmp;
+
+    return Integer.compare(this.key, o.key);
   }
 }

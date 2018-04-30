@@ -3,15 +3,23 @@ package de.lukas_schneider.midi_fx;
 import com.jogamp.opengl.GL2;
 
 import java.util.Set;
+import java.util.SortedSet;
 
 public class NoteArea implements Drawable {
 
   static final double WIDTH = Renderer.WIDTH;
   static final double HEIGHT = 850.0;
 
-  static final int CORNER_RESOLUTION = 40;
-  static final int CORNER_RADIUS = 3;
+  static final int INITIAL_TIME_RANGE = 4;
 
+  static final int CORNER_RESOLUTION = 80;
+  static final double CORNER_RADIUS = 8.0;
+
+  static final double SHADOW_OFFSET_X = 5.0;
+  static final double SHADOW_OFFSET_Y = 5.0;
+
+  static final double NOTE_PADDING_X = 1.0;
+  static final double NOTE_PADDING_Y = 0.0;
   private final Player player;
 
   private long timeRange;
@@ -19,11 +27,11 @@ public class NoteArea implements Drawable {
 
   public NoteArea(Player player) {
     this.player = player;
-    setTimeRange(2);
+    setTimeRange(INITIAL_TIME_RANGE);
   }
 
   public void setTimeRange(int seconds) {
-    timeRange = seconds * (1000 * 1000 * 1000);
+    timeRange = (long) (seconds) * (1000 * 1000 * 1000);
     timePerPixel = (long) (timeRange / HEIGHT);
   }
 
@@ -69,7 +77,8 @@ public class NoteArea implements Drawable {
   }
 
   private void drawNoteRect(GL2 gl, double x0, double y0, double x1, double y1) {
-    double r = (x1 - x0) / CORNER_RADIUS;
+    double r = Math.min(CORNER_RADIUS, (y1 - y0) / 2);
+
     gl.glBegin(GL2.GL_POLYGON);
     drawCorner(gl, x1 - r, y1 - r, r, 0);
     drawCorner(gl, x0 + r, y1 - r, r, 1);
@@ -79,21 +88,47 @@ public class NoteArea implements Drawable {
   }
 
   private void drawNote(GL2 gl, Note note, long nanoTime) {
-    double xStart = Claviature.getXPosition(note.getKey());
-    double xEnd = xStart + Claviature.getWidth(note.getKey());
+    double xStart = Claviature.getXPosition(note.getKey()) + NOTE_PADDING_X;
+    double xEnd = xStart + Claviature.getWidth(note.getKey()) - NOTE_PADDING_X;
 
-    double yStart = getYPosition(note.getEndTime() - nanoTime);
-    double yEnd = getYPosition(note.getStartTime() - nanoTime);
+    double yStart = getYPosition(note.getEndTime() - nanoTime) + NOTE_PADDING_Y;
+    double yEnd = getYPosition(note.getStartTime() - nanoTime) - NOTE_PADDING_Y;
 
-    Colors.set(gl, Colors.getTrackColor(note.getTrackId()));
-
+    Colors.set(gl, note.getColor());
     drawNoteRect(gl, xStart, yStart, xEnd, yEnd);
   }
 
+  private void drawNoteShadow(GL2 gl, Note note, long nanoTime) {
+    double xStart = Claviature.getXPosition(note.getKey()) + NOTE_PADDING_X;
+    double xEnd = xStart + Claviature.getWidth(note.getKey()) - NOTE_PADDING_X;
+
+    double yStart = getYPosition(note.getEndTime() - nanoTime) + NOTE_PADDING_Y;
+    double yEnd = getYPosition(note.getStartTime() - nanoTime) - NOTE_PADDING_Y;
+
+    Colors.set(gl, Colors.SHADOW);
+
+    drawNoteRect(
+        gl,
+        xStart + SHADOW_OFFSET_X,
+        yStart + SHADOW_OFFSET_Y,
+        xEnd + SHADOW_OFFSET_X,
+        yEnd + SHADOW_OFFSET_Y
+    );
+  }
+
   private void drawNotes(GL2 gl, long nanoTime) {
-    Set<Note> colored = player.getNotesIn(nanoTime, nanoTime + timeRange);
+    SortedSet<Note> colored = player.getNotesIn(nanoTime, nanoTime + timeRange);
+    colored.forEach((note) -> drawNoteShadow(gl, note, nanoTime));
+
+    gl.glEnable(GL2.GL_BLEND);
+    gl.glBlendFunc(GL2.GL_SRC_ALPHA, GL2.GL_ONE_MINUS_SRC_ALPHA);
+    gl.glEnable(GL2.GL_POLYGON_SMOOTH);
 
     colored.forEach((note) -> drawNote(gl, note, nanoTime));
+
+    gl.glDisable(GL2.GL_BLEND);
+    gl.glDisable(GL2.GL_POLYGON_SMOOTH);
+
   }
 
   @Override
