@@ -1,0 +1,188 @@
+package de.lukasschneider.midifx;
+
+import com.jogamp.opengl.GL2;
+
+import java.awt.*;
+import java.util.Set;
+
+class Claviature implements Drawable {
+
+  static final int MAX_KEYS = 128;
+
+  // standard 88 key configuration
+  static final int LOWEST_KEY = 21;     // A0
+  static final int LOWEST_C = 24;     // C0
+  static final int HIGHEST_KEY = 108;    // C8
+  static final int WHITE_KEYS = 52;
+  static final int KEYS_PER_OCTAVE = 12;
+  static final int WHITE_KEYS_PER_OCTAVE = 7;
+
+  static final double X = 0;
+  static final double Y = NoteArea.HEIGHT;
+  static final double WIDTH = Renderer.WIDTH - X;
+  static final double HEIGHT = Renderer.HEIGHT - Y;
+
+  // black key to white key height ratio
+  static final double BLACK_KEY_HEIGHT_RATIO = 0.65;
+
+
+  static final double WHITE_KEY_WIDTH = (WIDTH / WHITE_KEYS);
+  static final double BLACK_KEY_WIDTH = (WHITE_KEY_WIDTH * 0.5);
+
+  static final double OCTAVE_WIDTH = (WHITE_KEYS_PER_OCTAVE * WHITE_KEY_WIDTH);
+
+  static final double WHITE_KEY_HEIGHT = HEIGHT;
+  static final double BLACK_KEY_HEIGHT = WHITE_KEY_HEIGHT * BLACK_KEY_HEIGHT_RATIO;
+
+  //position relative to octave start
+  static final double[] KEY_POSITION = {
+      (0.0),                                              // C
+      (1.0 * WHITE_KEY_WIDTH) - (BLACK_KEY_WIDTH / 2.0),  // CIS
+      (1.0 * WHITE_KEY_WIDTH),                            // D
+      (2.0 * WHITE_KEY_WIDTH) - (BLACK_KEY_WIDTH / 2.0),  // DIS
+      (2.0 * WHITE_KEY_WIDTH),                            // E
+      (3.0 * WHITE_KEY_WIDTH),                            // F
+      (4.0 * WHITE_KEY_WIDTH) - (BLACK_KEY_WIDTH / 2.0),  // FIS
+      (4.0 * WHITE_KEY_WIDTH),                            // G
+      (5.0 * WHITE_KEY_WIDTH) - (BLACK_KEY_WIDTH / 2.0),  // GIS
+      (5.0 * WHITE_KEY_WIDTH),                            // A
+      (6.0 * WHITE_KEY_WIDTH) - (BLACK_KEY_WIDTH / 2.0),  // AIS
+      (6.0 * WHITE_KEY_WIDTH)                             // H
+  };
+
+  static final double FIRST_C_POSITION =
+      OCTAVE_WIDTH - KEY_POSITION[
+          (LOWEST_KEY + KEYS_PER_OCTAVE - LOWEST_C) % KEYS_PER_OCTAVE
+          ];
+
+  // LOWEST_C starts octave 0, LOWEST_KEY is in octave -1
+  static int getOctave(int key) {
+    int index = key - LOWEST_C;
+    return index >= 0 ? (index / KEYS_PER_OCTAVE) : -1;
+  }
+
+  // C=0 to B=11
+  static int getIndexInOctave(int key) {
+    return (key + KEYS_PER_OCTAVE - LOWEST_C) % KEYS_PER_OCTAVE;
+  }
+
+  static double getXPositionInOctave(int key) {
+    return KEY_POSITION[getIndexInOctave(key)];
+  }
+
+  static double getXPosition(int key) {
+    return FIRST_C_POSITION + (getOctave(key) * OCTAVE_WIDTH) + getXPositionInOctave(key);
+  }
+
+  static boolean isBlack(int key) {
+    int index = getIndexInOctave(key);
+    return (index == 1 || index == 3 || index == 6 || index == 8 || index == 10);
+  }
+
+  static boolean isNextBlack(int key) {
+    return isBlack(key + 1) && key != HIGHEST_KEY;
+  }
+
+  static boolean isPrevBlack(int key) {
+    return isBlack(key - 1) && key != LOWEST_KEY;
+  }
+
+  static double getWidth(int key) {
+    return isBlack(key) ? BLACK_KEY_WIDTH : WHITE_KEY_WIDTH;
+  }
+
+  private Player player;
+
+  Claviature(Player player) {
+    this.player = player;
+  }
+
+  private void drawKey(GL2 gl, int key, Color c) {
+    double xStart = X + getXPosition(key);
+    double yStart = Y;
+
+    gl.glColor3ub((byte) c.getRed(), (byte) c.getGreen(), (byte) c.getBlue());
+
+    if (isBlack(key)) {
+      gl.glBegin(GL2.GL_POLYGON);
+      gl.glVertex2d(xStart, yStart);
+      gl.glVertex2d(xStart + BLACK_KEY_WIDTH, yStart);
+      gl.glVertex2d(xStart + BLACK_KEY_WIDTH, yStart + BLACK_KEY_HEIGHT);
+      gl.glVertex2d(xStart, yStart + BLACK_KEY_HEIGHT);
+      gl.glEnd();
+      return;
+    }
+
+    // key is white
+
+    // draw first half
+    if (isPrevBlack(key)) {
+      gl.glBegin(GL2.GL_TRIANGLE_FAN); //convex polygon
+
+      gl.glVertex2d(xStart + BLACK_KEY_WIDTH / 2, yStart + BLACK_KEY_HEIGHT);
+      gl.glVertex2d(xStart, yStart + BLACK_KEY_HEIGHT);
+      gl.glVertex2d(xStart, yStart + WHITE_KEY_HEIGHT);
+      gl.glVertex2d(xStart + WHITE_KEY_WIDTH / 2, yStart + WHITE_KEY_HEIGHT);
+      gl.glVertex2d(xStart + WHITE_KEY_WIDTH / 2, yStart);
+      gl.glVertex2d(xStart + BLACK_KEY_WIDTH / 2, yStart);
+      gl.glEnd();
+    } else {
+      gl.glRectd(xStart, yStart, xStart + WHITE_KEY_WIDTH / 2, yStart + WHITE_KEY_HEIGHT);
+    }
+
+    // draw second half
+    if (isNextBlack(key)) {
+      gl.glBegin(GL2.GL_TRIANGLE_FAN); //convex polygon
+
+      gl.glVertex2d(xStart + WHITE_KEY_WIDTH - BLACK_KEY_WIDTH / 2, yStart + BLACK_KEY_HEIGHT);
+      gl.glVertex2d(xStart + WHITE_KEY_WIDTH, yStart + BLACK_KEY_HEIGHT);
+      gl.glVertex2d(xStart + WHITE_KEY_WIDTH, yStart + WHITE_KEY_HEIGHT);
+      gl.glVertex2d(xStart + WHITE_KEY_WIDTH / 2, yStart + WHITE_KEY_HEIGHT);
+      gl.glVertex2d(xStart + WHITE_KEY_WIDTH / 2, yStart);
+      gl.glVertex2d(xStart + WHITE_KEY_WIDTH - BLACK_KEY_WIDTH / 2, yStart);
+      gl.glEnd();
+    } else {
+      gl.glRectd(xStart + WHITE_KEY_WIDTH / 2, yStart, xStart + WHITE_KEY_WIDTH, yStart + WHITE_KEY_HEIGHT);
+    }
+
+    //draw separating line
+
+    gl.glColor3d(0.0, 0.0, 0.0);
+    gl.glLineWidth(2.0f);
+    gl.glBegin(GL2.GL_LINES);
+    gl.glVertex2d(xStart + WHITE_KEY_WIDTH, yStart + WHITE_KEY_HEIGHT);
+    gl.glVertex2d(xStart + WHITE_KEY_WIDTH, yStart + (isNextBlack(key) ? BLACK_KEY_HEIGHT : 0));
+    gl.glEnd();
+  }
+
+  private void drawKey(GL2 gl, int key) {
+    drawKey(gl, key, isBlack(key) ? Colors.BLACK : Colors.WHITE);
+  }
+
+  private void drawClaviature(GL2 gl, Color[] colors) {
+    for (int i = LOWEST_KEY; i <= HIGHEST_KEY; i++) {
+      if (colors[i] == null)
+        drawKey(gl, i);
+      else
+        drawKey(gl, i, colors[i]);
+    }
+  }
+
+  @Override
+  public void draw(GL2 gl, long nanoTime) {
+    Set<Note> colored = player.getNotesAt(nanoTime);
+
+    Color[] colors = new Color[MAX_KEYS];
+    for (Note n : colored) {
+      colors[n.getKey()] = n.getColor();
+    }
+
+    drawClaviature(gl, colors);
+  }
+
+  @Override
+  public void drawStatic(GL2 gl) {
+    Color[] colors = new Color[MAX_KEYS];
+    drawClaviature(gl, colors);
+  }
+}
