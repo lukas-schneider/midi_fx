@@ -10,13 +10,13 @@ class Colors {
 
   static final Color SHADOW = new Color(0, 0, 0, 12);
   static final Color[] TRACK_COLORS_WHITE = {
-      new Color(0xFF4500),
-      new Color(0x0003FF),
+      new Color(0xC85700),
+      new Color(0x005FFF),
   };
 
   static final Color[] TRACK_COLORS_BLACK = {
-      new Color(0x8E2B00),
-      new Color(0x00038E),
+      new Color(0x8D3700),
+      new Color(0x001FB8),
   };
 
   static Color getTrackColorWhite(int trackId) {

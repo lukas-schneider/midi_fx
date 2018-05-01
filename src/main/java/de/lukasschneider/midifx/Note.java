@@ -4,8 +4,11 @@ import javax.sound.midi.ShortMessage;
 import java.awt.*;
 
 public class Note implements Comparable<Note> {
+  private static final long MIN_DURATION = 10;
+
   private final long startTick;
   private final long endTick;
+  private final long duration;
   private final int key;
   private final int trackId;
   private final int channelId;
@@ -19,6 +22,12 @@ public class Note implements Comparable<Note> {
     this.key = ((ShortMessage) noteOn.getMessage()).getData1();
     this.startTick = noteOn.getTick();
     this.endTick = noteOff.getTick();
+    this.duration = this.endTick - this.startTick;
+
+    if(this.duration < MIN_DURATION) {
+      System.out.println("WARNING: very short Note found at tick " + this.startTick + " (duration: " + this.duration + ")");
+    }
+
   }
 
   public Color getColor() {
